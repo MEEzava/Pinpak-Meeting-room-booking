@@ -468,28 +468,18 @@
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             
-            try {
-                const response = await fetch('/api/admin/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ username, password })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    authToken = result.token;
-                    localStorage.setItem('adminToken', authToken);
-                    showNotification('เข้าสู่ระบบสำเร็จ!', 'success');
-                    showAdminPanel();
-                } else {
-                    showNotification(result.error, 'error');
-                }
-            } catch (err) {
-                showNotification('เกิดข้อผิดพลาดในการเข้าสู่ระบบ', 'error');
-            }
+            const ADMIN_USERNAME = 'admin';
+            const ADMIN_PASSWORD = 'admin123';
+
+            if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+                authToken = 'demo-token';
+                showNotification('เข้าสู่ระบบสำเร็จ!', 'success');
+                showAdminPanel();
+            } else {
+                showNotification('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
+            }   
+
+            
         }
 
         function logout() {
