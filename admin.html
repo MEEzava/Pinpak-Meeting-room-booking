@@ -312,7 +312,7 @@
 <body>
     <!-- Login Form -->
     <div id="loginContainer" class="login-container">
-        <a href="index.html" class="back-link">กลับหน้าหลัก</a>
+        <a href="/" class="back-link">กลับหน้าหลัก</a>
         <form id="loginForm" class="login-form">
             <h2>เข้าสู่ระบบ Admin</h2>
             <div class="form-group">
@@ -326,15 +326,12 @@
             <div style="text-align: center;">
                 <button type="submit" class="btn btn-primary">เข้าสู่ระบบ</button>
             </div>
-            <div style="text-align: center; margin-top: 10px; font-size: 0.9em; color: #666;">
-                ทดสอบ: username = admin, password = admin123
-            </div>
         </form>
     </div>
 
     <!-- Admin Panel -->
     <div id="adminPanel" class="admin-content">
-        <a href="index.html" class="back-link">กลับหน้าหลัก</a>
+        <a href="/" class="back-link">กลับหน้าหลัก</a>
         <button id="logoutBtn" class="logout-btn" onclick="logout()">ออกจากระบบ</button>
 
         <div class="container">
@@ -431,33 +428,6 @@
     </div>
 
     <script>
-        // Simple demo login system
-        const demoCredentials = {
-            username: 'admin',
-            password: 'admin123'
-        };
-
-        // Demo data storage
-        let demoBookings = [
-            {
-                id: 1,
-                date: new Date().toISOString().split('T')[0],
-                time: '09:00',
-                booker_name: 'สมชาย ใจดี',
-                contact: 'somchai@email.com',
-                purpose: 'ประชุมทีม'
-            },
-            {
-                id: 2,
-                date: new Date().toISOString().split('T')[0],
-                time: '14:00',
-                booker_name: 'สมหญิง มีดี',
-                contact: 'somying@email.com',
-                purpose: 'ประชุมลูกค้า'
-            }
-        ];
-
-        let demoBlockedTimes = [];
         let authToken = null;
 
         const timeSlotLabels = {
@@ -472,8 +442,12 @@
         };
 
         window.addEventListener('load', () => {
-            // For demo purposes, don't persist login
-            showLoginForm();
+            authToken = localStorage.getItem('adminToken');
+            if (authToken) {
+                showAdminPanel();
+            } else {
+                showLoginForm();
+            }
         });
 
         function showLoginForm() {
@@ -494,21 +468,43 @@
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             
-            // Simple demo authentication
-            if (username === demoCredentials.username && password === demoCredentials.password) {
-                authToken = 'demo-token';
-                showNotification('เข้าสู่ระบบสำเร็จ!', 'success');
-                showAdminPanel();
-            } else {
-                showNotification('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    authToken = result.token;
+                    localStorage.setItem('adminToken', authToken);
+                    showNotification('เข้าสู่ระบบสำเร็จ!', 'success');
+                    showAdminPanel();
+                } else {
+                    showNotification(result.error, 'error');
+                }
+            } catch (err) {
+                showNotification('เกิดข้อผิดพลาดในการเข้าสู่ระบบ', 'error');
             }
         }
 
         function logout() {
             authToken = null;
+            localStorage.removeItem('adminToken');
             showNotification('ออกจากระบบแล้ว', 'success');
             showLoginForm();
             document.getElementById('loginForm').reset();
+        }
+
+        function getAuthHeaders() {
+            return {
+                'Authorization': `Basic ${authToken}`,
+                'Content-Type': 'application/json'
+            };
         }
 
         function formatThaiDate(dateString) {
@@ -527,65 +523,109 @@
             return `${year}-${month}-${day}`;
         }
 
-        function loadAllBookings() {
+        async function loadAllBookings() {
             if (!authToken) return;
             
-            const allData = [];
-            
-            // Add bookings
-            demoBookings.forEach(booking => {
-                allData.push({
-                    type: 'booking',
-                    ...booking
+            try {
+                const response = await fetch('/api/admin/all-bookings', {
+                    headers: getAuthHeaders()
                 });
-            });
-
-            // Add blocked times
-            demoBlockedTimes.forEach(blocked => {
-                allData.push({
-                    type: 'blocked',
-                    ...blocked
+                
+                if (response.status === 401) {
+                    logout();
+                    return;
+                }
+                
+                const bookings = await response.json();
+                
+                const allData = [];
+                
+                bookings.forEach(booking => {
+                    allData.push({
+                        type: 'booking',
+                        ...booking
+                    });
                 });
-            });
 
-            displayBookings(allData);
-            updateStats(demoBookings, demoBlockedTimes);
+                const today = new Date();
+                const endDate = new Date();
+                endDate.setDate(today.getDate() + 30);
+                
+                const datesToCheck = [];
+                for (let d = new Date(today); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    datesToCheck.push(formatDate(new Date(d)));
+                }
+                
+                const bookingDates = [...new Set(bookings.map(b => b.date))];
+                const allDates = [...new Set([...datesToCheck, ...bookingDates])];
+                
+                for (let date of allDates) {
+                    try {
+                        const blockedResponse = await fetch(`/api/bookings/${date}`);
+                        const contentType = blockedResponse.headers.get("content-type");
+                        if (contentType && contentType.includes("application/json")) {
+                            const data = await blockedResponse.json();
+                            if (data.blocked) {
+                                data.blocked.forEach(blocked => {
+                                    allData.push({
+                                        type: 'blocked',
+                                        date: date,
+                                        ...blocked
+                                    });
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Error loading blocked times for', date);
+                    }
+                }
+
+                displayBookings(allData);
+                updateStats(bookings, allData.filter(d => d.type === 'blocked'));
+            } catch (err) {
+                console.error('Error loading bookings:', err);
+                showNotification('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
+            }
         }
 
-        function searchBookings() {
+        async function searchBookings() {
             const searchDate = document.getElementById('searchDate').value;
             if (!searchDate) {
                 showNotification('กรุณาเลือกวันที่', 'error');
                 return;
             }
 
-            const allData = [];
-            
-            // Filter bookings by date
-            const filteredBookings = demoBookings.filter(b => b.date === searchDate);
-            filteredBookings.forEach(booking => {
-                allData.push({
-                    type: 'booking',
-                    ...booking
+            try {
+                const response = await fetch(`/api/bookings/${searchDate}`);
+                const data = await response.json();
+                
+                const allData = [];
+                
+                data.bookings.forEach(booking => {
+                    allData.push({
+                        type: 'booking',
+                        ...booking
+                    });
                 });
-            });
 
-            // Filter blocked times by date
-            const filteredBlocked = demoBlockedTimes.filter(b => b.date === searchDate);
-            filteredBlocked.forEach(blocked => {
-                allData.push({
-                    type: 'blocked',
-                    ...blocked
+                data.blocked.forEach(blocked => {
+                    allData.push({
+                        type: 'blocked',
+                        ...blocked
+                    });
                 });
-            });
 
-            displayBookings(allData);
+                displayBookings(allData);
+            } catch (err) {
+                console.error('Error searching bookings:', err);
+                showNotification('เกิดข้อผิดพลาดในการค้นหา', 'error');
+            }
         }
 
-        function loadTodayBookings() {
+        async function loadTodayBookings() {
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('searchDate').value = today;
-            searchBookings();
+            await searchBookings();
         }
 
         function displayBookings(data) {
@@ -640,43 +680,97 @@
             tbody.innerHTML = html;
         }
 
-        function cancelBooking(bookingId) {
+        async function cancelBooking(bookingId) {
             if (!confirm('ต้องการยกเลิกการจองนี้หรือไม่?')) return;
 
-            // Remove from demo data
-            demoBookings = demoBookings.filter(b => b.id !== bookingId);
-            
-            showNotification('ยกเลิกการจองสำเร็จ!', 'success');
-            loadAllBookings();
+            try {
+                const response = await fetch(`/api/bookings/${bookingId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.status === 401) {
+                    logout();
+                    return;
+                }
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification('ยกเลิกการจองสำเร็จ!', 'success');
+                    loadAllBookings();
+                } else {
+                    showNotification(result.error || 'เกิดข้อผิดพลาด', 'error');
+                }
+            } catch (err) {
+                console.error('Error canceling booking:', err);
+                showNotification('เกิดข้อผิดพลาดในการยกเลิก', 'error');
+            }
         }
 
-        function unblockTime(blockId) {
+        async function unblockTime(blockId) {
             if (!confirm('ต้องการเปิดช่วงเวลานี้หรือไม่?')) return;
 
-            // Remove from demo data
-            demoBlockedTimes = demoBlockedTimes.filter(b => b.id !== blockId);
-            
-            showNotification('เปิดช่วงเวลาสำเร็จ!', 'success');
-            loadAllBookings();
+            try {
+                const response = await fetch(`/api/admin/block-time/${blockId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.status === 401) {
+                    logout();
+                    return;
+                }
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification('เปิดช่วงเวลาสำเร็จ!', 'success');
+                    loadAllBookings();
+                } else {
+                    showNotification(result.error || 'เกิดข้อผิดพลาด', 'error');
+                }
+            } catch (err) {
+                console.error('Error unblocking time:', err);
+                showNotification('เกิดข้อผิดพลาดในการเปิดช่วงเวลา', 'error');
+            }
         }
 
-        function submitBlockTime(event) {
+        async function submitBlockTime(event) {
             event.preventDefault();
 
             const formData = {
-                id: Date.now(), // Simple ID generation
                 date: document.getElementById('blockDate').value,
                 time: document.getElementById('blockTime').value,
-                reason: document.getElementById('blockReason').value || 'ไม่ระบุเหตุผล'
+                reason: document.getElementById('blockReason').value
             };
 
-            // Add to demo data
-            demoBlockedTimes.push(formData);
-            
-            showNotification('ปิดช่วงเวลาสำเร็จ!', 'success');
-            document.getElementById('blockTimeForm').reset();
-            document.getElementById('blockDate').valueAsDate = new Date();
-            loadAllBookings();
+            try {
+                const response = await fetch('/api/admin/block-time', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.status === 401) {
+                    logout();
+                    return;
+                }
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification('ปิดช่วงเวลาสำเร็จ!', 'success');
+                    document.getElementById('blockTimeForm').reset();
+                    document.getElementById('blockDate').valueAsDate = new Date();
+                    loadAllBookings();
+                } else {
+                    showNotification(result.error || 'เกิดข้อผิดพลาด', 'error');
+                }
+            } catch (err) {
+                console.error('Error blocking time:', err);
+                showNotification('เกิดข้อผิดพลาดในการปิดช่วงเวลา', 'error');
+            }
         }
 
         function updateStats(bookings, blockedTimes) {
@@ -709,7 +803,6 @@
         document.getElementById('loginForm').addEventListener('submit', login);
         document.getElementById('blockTimeForm').addEventListener('submit', submitBlockTime);
 
-        // Set default date to today
         document.getElementById('blockDate').valueAsDate = new Date();
     </script>
 </body>
