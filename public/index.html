@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจองห้องประชุม</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f4f8 50%, #f0f8ff 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .admin-link {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .admin-link:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .nav-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+
+        .nav-btn:hover {
+            background: #2980b9;
+            transform: scale(1.1);
+        }
+
+        .month-year {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .calendar {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .calendar th {
+            background: #ecf0f1;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .calendar td {
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid #f0f0f0;
+            position: relative;
+        }
+
+        .calendar td:hover {
+            background: #e8f4f8;
+            transform: scale(1.05);
+        }
+
+        .calendar td.today {
+            background: #3498db !important;
+            color: white !important;
+            font-weight: bold;
+        }
+
+        .calendar td.selected {
+            background: #e74c3c !important;
+            color: white !important;
+            font-weight: bold;
+            border: 2px solid #c0392b !important;
+        }
+
+        .calendar td.has-bookings::after {
+            content: '•';
+            position: absolute;
+            bottom: 5px;
+            right: 8px;
+            color: #e74c3c;
+            font-size: 1.5em;
+        }
+
+        .calendar td.other-month {
+            color: #ccc;
+        }
+
+        .time-slots-card {
+            display: none;
+        }
+
+        .time-slots-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background: #c0392b;
+            transform: scale(1.1);
+        }
+
+        .time-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .time-slot {
+            background: #f8f9fa;
+            border: 2px solid #e0e6ff;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .time-slot:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .time-slot.available {
+            border-color: #28a745;
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .time-slot.available:hover {
+            background: #c3e6cb;
+        }
+
+        .time-slot.selected {
+            background: #fff3cd !important;
+            border-color: #ffc107 !important;
+            color: #856404 !important;
+        }
+
+        .time-slot.booked {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+            cursor: not-allowed;
+        }
+
+        .time-slot.blocked {
+            background: #d1ecf1;
+            border-color: #17a2b8;
+            color: #0c5460;
+            cursor: not-allowed;
+        }
+
+        .booking-controls {
+            grid-column: 1 / -1;
+            margin-top: 20px;
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 2px dashed #dee2e6;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #bdc3c7;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            z-index: 1001;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            max-width: 400px;
+        }
+
+        .notification.success {
+            background: #28a745;
+        }
+
+        .notification.error {
+            background: #dc3545;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .selection-info {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            color: #1565c0;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <a href="/admin" class="admin-link">Admin</a>
+
+    <div class="container">
+        <div class="header">
+            <h1>ระบบจองห้องประชุม</h1>
+            <p>คลิกวันที่ในปฏิทิน แล้วเลือกช่วงเวลาที่ต้องการ (สามารถเลือกหลายช่วงเวลาได้)</p>
+        </div>
+
+        <div class="card">
+            <div class="calendar-header">
+                <button class="nav-btn" onclick="previousMonth()">‹</button>
+                <div class="month-year" id="monthYear"></div>
+                <button class="nav-btn" onclick="nextMonth()">›</button>
+            </div>
+            <table class="calendar" id="calendar"></table>
+        </div>
+
+        <div class="card time-slots-card" id="timeSlotsCard">
+            <div class="time-slots-header">
+                <h2 id="selectedDate">เลือกช่วงเวลา</h2>
+                <button class="close-btn" onclick="closeTimeSlots()">✕</button>
+            </div>
+            <div id="selectionInfo" class="selection-info" style="display: none;">
+                คลิกเพื่อเลือกช่วงเวลา (สีเหลือง = เลือกแล้ว)
+            </div>
+            <div class="time-grid" id="timeGrid"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="bookingModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>จองห้องประชุม</h2>
+                <p id="bookingInfo">วันที่ และเวลา</p>
+            </div>
+            <form id="bookingForm">
+                <div class="form-group">
+                    <label>ชื่อผู้จอง *</label>
+                    <input type="text" id="bookerName" required placeholder="กรอกชื่อผู้จอง">
+                </div>
+                <div class="form-group">
+                    <label>เบอร์ติดต่อ</label>
+                    <input type="text" id="contact" placeholder="กรอกเบอร์ติดต่อ (ไม่บังคับ)">
+                </div>
+                <div class="form-group">
+                    <label>วัตถุประสงค์</label>
+                    <textarea id="purpose" rows="3" placeholder="เช่น ประชุมทีม, อบรม, สัมมนา..."></textarea>
+                </div>
+                <div style="text-align: center;">
+                    <button type="submit" class="btn btn-primary">จองห้อง</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentDate = new Date();
+        let selectedDateValue = null;
+        let selectedTimeValue = null;
+        let selectedTimeSlots = [];
+
+        const months = [
+            'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+            'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ];
+
+        const days = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+        const dayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+        const timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'];
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function generateCalendar() {
+            const calendar = document.getElementById('calendar');
+            const monthYear = document.getElementById('monthYear');
+            
+            monthYear.textContent = `${months[currentDate.getMonth()]} ${currentDate.getFullYear() + 543}`;
+            
+            let html = '<tr>';
+            days.forEach(day => {
+                html += `<th>${day}</th>`;
+            });
+            html += '</tr>';
+            
+            const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+            const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+            const startDate = new Date(firstDay);
+            startDate.setDate(startDate.getDate() - firstDay.getDay());
+            
+            const today = new Date();
+            const todayStr = formatDate(today);
+            
+            for (let week = 0; week < 6; week++) {
+                html += '<tr>';
+                for (let day = 0; day < 7; day++) {
+                    const currentDay = new Date(startDate);
+                    currentDay.setDate(startDate.getDate() + (week * 7) + day);
+                    
+                    const isCurrentMonth = currentDay.getMonth() === currentDate.getMonth();
+                    const isToday = formatDate(currentDay) === todayStr;
+                    const dateStr = formatDate(currentDay);
+                    const dayNumber = currentDay.getDate();
+                    
+                    let classes = [];
+                    if (!isCurrentMonth) classes.push('other-month');
+                    if (isToday) classes.push('today');
+                    
+                    html += `<td class="${classes.join(' ')}" data-date="${dateStr}" onclick="selectDate('${dateStr}')">
+                        ${dayNumber}
+                    </td>`;
+                }
+                html += '</tr>';
+            }
+            
+            calendar.innerHTML = html;
+            loadBookingIndicators();
+        }
+
+        async function loadBookingIndicators() {
+            const cells = document.querySelectorAll('td[data-date]');
+            
+            for (let cell of cells) {
+                const date = cell.getAttribute('data-date');
+                try {
+                    const response = await fetch(`/api/bookings/${date}`);
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.includes("application/json")) {
+                        const data = await response.json();
+                        if (data.bookings && data.bookings.length > 0) {
+                            cell.classList.add('has-bookings');
+                        }
+                    }
+                } catch (err) {
+                    // ไม่แสดง error
+                }
+            }
+        }
+
+        function selectDate(dateStr) {
+            selectedDateValue = dateStr;
+            selectedTimeSlots = [];
+            
+            // ลบไฮไลท์เก่าทั้งหมด
+            document.querySelectorAll('.calendar td').forEach(td => {
+                td.classList.remove('selected');
+            });
+            
+            // เพิ่มไฮไลท์ใหม่
+            const targetCell = document.querySelector(`td[data-date="${dateStr}"]`);
+            if (targetCell) {
+                targetCell.classList.add('selected');
+            }
+            
+            // แปลงวันที่
+            const parts = dateStr.split('-');
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]);
+            const day = parseInt(parts[2]);
+            
+            const dateObj = new Date(year, month - 1, day, 12, 0, 0);
+            const dayOfWeek = dateObj.getDay();
+            
+            const dayName = dayNames[dayOfWeek];
+            const monthName = months[month - 1];
+            const yearThai = year + 543;
+            
+            document.getElementById('selectedDate').textContent = `${dayName}ที่ ${day} ${monthName} ${yearThai}`;
+            document.getElementById('selectionInfo').style.display = 'block';
+            
+            loadTimeSlots(dateStr);
+            document.getElementById('timeSlotsCard').style.display = 'block';
+        }
+
+        async function loadTimeSlots(date) {
+            try {
+                const response = await fetch(`/api/bookings/${date}`);
+                const contentType = response.headers.get("content-type");
+                
+                let data = { bookings: [], blocked: [] };
+                if (contentType && contentType.includes("application/json")) {
+                    data = await response.json();
+                }
+                
+                const timeGrid = document.getElementById('timeGrid');
+                let html = '';
+                
+                timeSlots.forEach(time => {
+                    const booking = data.bookings.find(b => b.time === time);
+                    const blocked = data.blocked.find(b => b.time === time);
+                    
+                    let className = 'time-slot';
+                    let content = `<div><strong>${time} - ${String(parseInt(time) + 1).padStart(2, '0')}:00</strong></div>`;
+                    let onclick = '';
+                    
+                    if (blocked) {
+                        className += ' blocked';
+                        content += `<div>❌ ปิดให้บริการ</div>`;
+                        if (blocked.reason) {
+                            content += `<div><small>${blocked.reason}</small></div>`;
+                        }
+                    } else if (booking) {
+                        className += ' booked';
+                        content += `<div>👤 ${booking.booker_name}</div>`;
+                        if (booking.purpose) {
+                            content += `<div><small>${booking.purpose}</small></div>`;
+                        }
+                    } else {
+                        className += ' available';
+                        content += `<div>✅ ว่าง</div>`;
+                        onclick = `onclick="toggleTimeSlot('${time}')"`;
+                    }
+                    
+                    html += `<div class="${className}" ${onclick} data-time="${time}">${content}</div>`;
+                });
+                
+                timeGrid.innerHTML = html;
+                updateBookingControls();
+            } catch (err) {
+                // แสดงช่วงเวลาพื้นฐาน
+                const timeGrid = document.getElementById('timeGrid');
+                let html = '';
+                timeSlots.forEach(time => {
+                    html += `
+                        <div class="time-slot available" onclick="toggleTimeSlot('${time}')" data-time="${time}">
+                            <div><strong>${time} - ${String(parseInt(time) + 1).padStart(2, '0')}:00</strong></div>
+                            <div>✅ ว่าง</div>
+                        </div>
+                    `;
+                });
+                timeGrid.innerHTML = html;
+                updateBookingControls();
+            }
+        }
+
+        function toggleTimeSlot(time) {
+            const index = selectedTimeSlots.indexOf(time);
+            
+            if (index > -1) {
+                selectedTimeSlots.splice(index, 1);
+            } else {
+                selectedTimeSlots.push(time);
+            }
+            
+            selectedTimeSlots.sort();
+            updateTimeSlotDisplay();
+            updateBookingControls();
+        }
+
+        function updateTimeSlotDisplay() {
+            document.querySelectorAll('.time-slot.available').forEach(slot => {
+                const time = slot.getAttribute('data-time');
+                if (selectedTimeSlots.includes(time)) {
+                    slot.classList.add('selected');
+                } else {
+                    slot.classList.remove('selected');
+                }
+            });
+        }
+
+        function updateBookingControls() {
+            let existingControls = document.getElementById('bookingControls');
+            if (existingControls) {
+                existingControls.remove();
+            }
+            
+            if (selectedTimeSlots.length > 0) {
+                const timeGrid = document.getElementById('timeGrid');
+                const controlsHtml = `
+                    <div id="bookingControls" class="booking-controls">
+                        <div style="margin-bottom: 15px;">
+                            <strong>เลือกแล้ว ${selectedTimeSlots.length} ช่วงเวลา:</strong><br>
+                            ${formatSelectedTimes()}
+                        </div>
+                        <button class="btn btn-warning" onclick="openMultiBookingModal()">
+                            จองช่วงเวลาที่เลือก (${selectedTimeSlots.length} ชั่วโมง)
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearSelectedSlots()">
+                            ยกเลิกทั้งหมด
+                        </button>
+                    </div>
+                `;
+                timeGrid.insertAdjacentHTML('beforeend', controlsHtml);
+            }
+        }
+
+        function formatSelectedTimes() {
+            if (selectedTimeSlots.length === 0) return '';
+            
+            let ranges = [];
+            let start = selectedTimeSlots[0];
+            let end = selectedTimeSlots[0];
+            
+            for (let i = 1; i < selectedTimeSlots.length; i++) {
+                const currentHour = parseInt(selectedTimeSlots[i].split(':')[0]);
+                const prevHour = parseInt(selectedTimeSlots[i - 1].split(':')[0]);
+                
+                if (currentHour === prevHour + 1) {
+                    end = selectedTimeSlots[i];
+                } else {
+                    if (start === end) {
+                        ranges.push(`${start}-${String(parseInt(start.split(':')[0]) + 1).padStart(2, '0')}:00`);
+                    } else {
+                        ranges.push(`${start}-${String(parseInt(end.split(':')[0]) + 1).padStart(2, '0')}:00`);
+                    }
+                    start = selectedTimeSlots[i];
+                    end = selectedTimeSlots[i];
+                }
+            }
+            
+            if (start === end) {
+                ranges.push(`${start}-${String(parseInt(start.split(':')[0]) + 1).padStart(2, '0')}:00`);
+            } else {
+                ranges.push(`${start}-${String(parseInt(end.split(':')[0]) + 1).padStart(2, '0')}:00`);
+            }
+            
+            return ranges.join(', ');
+        }
+
+        function clearSelectedSlots() {
+            selectedTimeSlots = [];
+            updateTimeSlotDisplay();
+            updateBookingControls();
+        }
+
+        function openMultiBookingModal() {
+            if (selectedTimeSlots.length === 0) return;
+            
+            selectedTimeValue = selectedTimeSlots;
+            
+            const parts = selectedDateValue.split('-');
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]);
+            const day = parseInt(parts[2]);
+            
+            const dateObj = new Date(year, month - 1, day, 12, 0, 0);
+            const dayOfWeek = dateObj.getDay();
+            
+            const dayName = dayNames[dayOfWeek];
+            const monthName = months[month - 1];
+            const yearThai = year + 543;
+            
+            document.getElementById('bookingInfo').textContent = 
+                `${dayName}ที่ ${day} ${monthName} ${yearThai} เวลา ${formatSelectedTimes()} (${selectedTimeSlots.length} ชั่วโมง)`;
+            
+            document.getElementById('bookingModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('bookingModal').style.display = 'none';
+            document.getElementById('bookingForm').reset();
+        }
+
+        function closeTimeSlots() {
+            document.getElementById('timeSlotsCard').style.display = 'none';
+            document.querySelectorAll('.calendar td').forEach(td => {
+                td.classList.remove('selected');
+            });
+            selectedTimeSlots = [];
+        }
+
+        function previousMonth() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            document.querySelectorAll('.calendar td').forEach(td => {
+                td.classList.remove('selected');
+            });
+            document.getElementById('timeSlotsCard').style.display = 'none';
+            selectedTimeSlots = [];
+            generateCalendar();
+        }
+
+        function nextMonth() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            document.querySelectorAll('.calendar td').forEach(td => {
+                td.classList.remove('selected');
+            });
+            document.getElementById('timeSlotsCard').style.display = 'none';
+            selectedTimeSlots = [];
+            generateCalendar();
+        }
+
+        async function submitBooking(event) {
+            event.preventDefault();
+            
+            const bookerName = document.getElementById('bookerName').value;
+            const contact = document.getElementById('contact').value;
+            const purpose = document.getElementById('purpose').value;
+            
+            const timesToBook = Array.isArray(selectedTimeValue) ? selectedTimeValue : [selectedTimeValue];
+            let successCount = 0;
+            let failedTimes = [];
+            
+            for (let time of timesToBook) {
+                const bookingData = {
+                    date: selectedDateValue,
+                    time: time,
+                    booker_name: bookerName,
+                    contact: contact,
+                    purpose: purpose
+                };
+                
+                try {
+                    const response = await fetch('/api/bookings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(bookingData)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        successCount++;
+                    } else {
+                        failedTimes.push(`${time} (${result.error})`);
+                    }
+                } catch (err) {
+                    failedTimes.push(`${time} (เกิดข้อผิดพลาด)`);
+                }
+            }
+            
+            // แสดงผลลัพธ์
+            if (successCount > 0 && failedTimes.length === 0) {
+                showNotification(`จองสำเร็จ ${successCount} ช่วงเวลา!`, 'success');
+            } else if (successCount > 0 && failedTimes.length > 0) {
+                showNotification(`จองสำเร็จ ${successCount} ช่วงเวลา, ไม่สำเร็จ: ${failedTimes.join(', ')}`, 'error');
+            } else {
+                showNotification(`จองไม่สำเร็จ: ${failedTimes.join(', ')}`, 'error');
+            }
+            
+            closeModal();
+            selectedTimeSlots = [];
+            loadTimeSlots(selectedDateValue);
+            generateCalendar();
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.classList.add('show'), 100);
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        // Event Listeners
+        document.getElementById('bookingForm').addEventListener('submit', submitBooking);
+        document.getElementById('bookingModal').addEventListener('click', (e) => {
+            if (e.target.id === 'bookingModal') {
+                closeModal();
+            }
+        });
+
+        // เริ่มต้นแอพ
+        generateCalendar();
+    </script>
+</body>
+</html>
